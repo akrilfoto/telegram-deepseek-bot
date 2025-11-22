@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: telegram-deepseek-bot-web
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python webserver.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+
+  - type: worker
+    name: telegram-deepseek-bot-worker
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
