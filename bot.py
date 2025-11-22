@@ -1,7 +1,7 @@
 import os
 import logging
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 import requests
 import json
@@ -56,12 +56,12 @@ class DeepSeekBot:
         """Проверяет, есть ли пользователь в списке разрешенных"""
         return user_id in self.allowed_users
     
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def start(self, update, context):
         """Обработчик команды /start"""
-        user_id = update.effective_user.id
+        user_id = update.message.from_user.id
         
         if not self.is_user_allowed(user_id):
-            await update.message.reply_text("🚫 У вас нет доступа к этому боту.")
+            update.message.reply_text("🚫 У вас нет доступа к этому боту.")
             return
         
         welcome_text = """
@@ -75,11 +75,11 @@ class DeepSeekBot:
 
 Просто напиши мне вопрос, и я помогу!
         """
-        await update.message.reply_text(welcome_text)
+        update.message.reply_text(welcome_text)
     
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def help_command(self, update, context):
         """Обработчик команды /help"""
-        user_id = update.effective_user.id
+        user_id = update.message.from_user.id
         
         if not self.is_user_allowed(user_id):
             return
@@ -93,11 +93,11 @@ class DeepSeekBot:
 
 Просто напиши сообщение, и я обработаю его через DeepSeek API!
         """
-        await update.message.reply_text(help_text)
+        update.message.reply_text(help_text)
     
-    async def upload_history_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def upload_history_command(self, update, context):
         """Обработчик команды /upload_history"""
-        user_id = update.effective_user.id
+        user_id = update.message.from_user.id
         
         if not self.is_user_allowed(user_id):
             return
@@ -114,24 +114,24 @@ class DeepSeekBot:
 
 Я запомню контекст и буду учитывать его в ответах!
 """
-        await update.message.reply_text(instruction)
+        update.message.reply_text(instruction)
     
-    async def show_context_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def show_context_command(self, update, context):
         """Показать текущий контекст"""
-        user_id = update.effective_user.id
+        user_id = update.message.from_user.id
         
         if not self.is_user_allowed(user_id):
             return
             
         if not self.conversation_history:
-            await update.message.reply_text("📝 Контекст пока пуст. Используй /upload_history чтобы загрузить историю.")
+            update.message.reply_text("📝 Контекст пока пуст. Используй /upload_history чтобы загрузить историю.")
         else:
             preview = self.conversation_history[:500] + "..." if len(self.conversation_history) > 500 else self.conversation_history
-            await update.message.reply_text(f"📚 Текущий контекст ({len(self.conversation_history)} символов):\n\n{preview}")
+            update.message.reply_text(f"📚 Текущий контекст ({len(self.conversation_history)} символов):\n\n{preview}")
     
-    async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def handle_document(self, update, context):
         """Обработчик документов (загрузка истории)"""
-        user_id = update.effective_user.id
+        user_id = update.message.from_user.id
         
         if not self.is_user_allowed(user_id):
             return
@@ -140,16 +140,18 @@ class DeepSeekBot:
         
         # Проверяем что это текстовый файл
         if document.mime_type != "text/plain" and not document.file_name.endswith('.txt'):
-            await update.message.reply_text("❌ Пожалуйста, отправьте текстовый файл (.txt)")
+            update.message.reply_text("❌ Пожалуйста, отправьте текстовый файл (.txt)")
             return
         
-        await update.message.reply_text("📥 Загружаю и анализирую историю...")
+        update.message.reply_text("📥 Загружаю и анализирую историю...")
         
         try:
             # Скачиваем файл
-            file = await context.bot.get_file(document.file_id)
-            file_content = await file.download_as_bytearray()
-            text_content = file_content.decode('utf-8')
+            file = context.bot.get_file(document.file_id)
+            file_path = file.download()
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
             
             # Добавляем к существующей истории
             if self.conversation_history:
@@ -157,11 +159,11 @@ class DeepSeekBot:
             else:
                 self.conversation_history = text_content
             
-            await update.message.reply_text(f"✅ История успешно загружена! Теперь контекст содержит {len(self.conversation_history)} символов.")
+            update.message.reply_text(f"✅ История успешно загружена! Теперь контекст содержит {len(self.conversation_history)} символов.")
             
         except Exception as e:
             logging.error(f"Error processing history: {e}")
-            await update.message.reply_text("❌ Ошибка при обработке файла.")
+            update.message.reply_text("❌ Ошибка при обработке файла.")
     
     def get_deepseek_response(self, user_message):
         """Получаем ответ от DeepSeek API с учетом контекста"""
@@ -231,19 +233,19 @@ class DeepSeekBot:
             print(f"❌ Неизвестная ошибка: {e}")
             return "⚠️ Произошла непредвиденная ошибка. Попробуй позже."
     
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def handle_message(self, update, context):
         """Обработчик текстовых сообщений"""
-        user_id = update.effective_user.id
+        user_id = update.message.from_user.id
         
         # Проверяем доступ
         if not self.is_user_allowed(user_id):
-            await update.message.reply_text("🚫 У вас нет доступа к этому боту.")
+            update.message.reply_text("🚫 У вас нет доступа к этому боту.")
             return
         
         user_message = update.message.text
         
         # Показываем, что бот печатает
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+        context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
         
         # Получаем ответ от DeepSeek
         response = self.get_deepseek_response(user_message)
@@ -253,23 +255,25 @@ class DeepSeekBot:
 
         # Отправляем каждую часть отдельным сообщением
         for part in message_parts:
-            await update.message.reply_text(part)
+            update.message.reply_text(part)
     
     def run(self):
         """Запуск бота"""
-        application = Application.builder().token(self.token).build()
+        updater = Updater(self.token, use_context=True)
+        dispatcher = updater.dispatcher
         
         # Добавляем обработчики
-        application.add_handler(CommandHandler("start", self.start))
-        application.add_handler(CommandHandler("help", self.help_command))
-        application.add_handler(CommandHandler("upload_history", self.upload_history_command))
-        application.add_handler(CommandHandler("show_context", self.show_context_command))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-        application.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
+        dispatcher.add_handler(CommandHandler("start", self.start))
+        dispatcher.add_handler(CommandHandler("help", self.help_command))
+        dispatcher.add_handler(CommandHandler("upload_history", self.upload_history_command))
+        dispatcher.add_handler(CommandHandler("show_context", self.show_context_command))
+        dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, self.handle_message))
+        dispatcher.add_handler(MessageHandler(Filters.document, self.handle_document))
         
         # Запускаем бота
         logging.info("Бот запущен!")
-        application.run_polling()
+        updater.start_polling()
+        updater.idle()
 
 if __name__ == "__main__":
     bot = DeepSeekBot()
