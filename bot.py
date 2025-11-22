@@ -5,8 +5,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from dotenv import load_dotenv
 import requests
 import json
-from flask import Flask
-import threading
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -16,17 +14,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
-
-# Создаем Flask app для keep-alive
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "🤖 Bot is alive and running!"
-
-@app.route('/health')
-def health():
-    return "✅ OK"
 
 class DeepSeekBot:
     def __init__(self):
@@ -268,39 +255,22 @@ class DeepSeekBot:
         for part in message_parts:
             await update.message.reply_text(part)
     
-    def run_bot(self):
-        """Запуск Telegram бота"""
-        try:
-            application = Application.builder().token(self.token).build()
-            
-            # Добавляем обработчики
-            application.add_handler(CommandHandler("start", self.start))
-            application.add_handler(CommandHandler("help", self.help_command))
-            application.add_handler(CommandHandler("upload_history", self.upload_history_command))
-            application.add_handler(CommandHandler("show_context", self.show_context_command))
-            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
-            application.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
-            
-            # Запускаем бота
-            logging.info("🤖 Telegram бот запущен!")
-            application.run_polling()
-        except Exception as e:
-            logging.error(f"❌ Ошибка запуска бота: {e}")
-
-def run_flask():
-    """Запуск Flask сервера"""
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    def run(self):
+        """Запуск бота"""
+        application = Application.builder().token(self.token).build()
+        
+        # Добавляем обработчики
+        application.add_handler(CommandHandler("start", self.start))
+        application.add_handler(CommandHandler("help", self.help_command))
+        application.add_handler(CommandHandler("upload_history", self.upload_history_command))
+        application.add_handler(CommandHandler("show_context", self.show_context_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
+        application.add_handler(MessageHandler(filters.Document.ALL, self.handle_document))
+        
+        # Запускаем бота
+        logging.info("Бот запущен!")
+        application.run_polling()
 
 if __name__ == "__main__":
-    # Запускаем Flask в основном потоке
-    logging.info("🚀 Запускаем приложение...")
-    
-    # Создаем и запускаем бота в отдельном потоке
     bot = DeepSeekBot()
-    bot_thread = threading.Thread(target=bot.run_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-    
-    # Запускаем Flask в основном потоке
-    run_flask()
+    bot.run()
