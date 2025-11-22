@@ -5,6 +5,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from dotenv import load_dotenv
 import requests
 import json
+from flask import Flask
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -14,6 +15,13 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+# Создаем Flask app для keep-alive
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is alive and running!"
 
 class DeepSeekBot:
     def __init__(self):
@@ -271,6 +279,18 @@ class DeepSeekBot:
         logging.info("Бот запущен!")
         application.run_polling()
 
+def run_flask():
+    """Запуск Flask сервера для keep-alive"""
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+
 if __name__ == "__main__":
+    # Запускаем Flask в отдельном потоке
+    from threading import Thread
+    flask_thread = Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    
+    # Запускаем бота
     bot = DeepSeekBot()
     bot.run()
